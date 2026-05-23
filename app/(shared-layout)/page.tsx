@@ -3,17 +3,18 @@
 import {
   Activity,
   AlertTriangle,
+  ArrowRight,
   BookOpen,
-  ChevronDown,
-  ChevronUp,
-  Edit3,
+  Building2,
+  CheckCircle2,
+  Database,
+  Globe2,
   Info,
   Layers,
   RefreshCw,
-  Save,
   Shield,
+  ShieldAlert,
   TrendingUp,
-  X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -53,18 +54,36 @@ interface AssetScope {
   backup_coverage: number;
 }
 
-interface EditState {
-  target_tier: number;
-  owner: string;
-  due_date: string;
-}
-
 interface RingItem {
   name: string;
   nameMn: string;
   current: number;
   target: number;
   color: string;
+}
+
+interface ScopeSummary {
+  departments: number;
+  processes: number;
+  assets: number;
+  nist_subcategories: number;
+  scope_status: string | null;
+}
+
+interface ScopeAssetRisk {
+  asset_name: string;
+  asset_type: string | null;
+  internet_exposed: boolean;
+  risk_count: number;
+  highest_level: string;
+}
+
+interface RiskLevelCounts {
+  Critical: number;
+  High: number;
+  Medium: number;
+  Low: number;
+  total: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -263,26 +282,28 @@ export default function Home() {
     draftCount: number;
     compliancePct: number;
   } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editState, setEditState] = useState<EditState>({
-    target_tier: 3,
-    owner: "",
-    due_date: "",
+  const [scopeSummary, setScopeSummary] = useState<ScopeSummary | null>(null);
+  const [scopeAssetRisks, setScopeAssetRisks] = useState<ScopeAssetRisk[]>([]);
+  const [riskLevelCounts, setRiskLevelCounts] = useState<RiskLevelCounts>({
+    Critical: 0,
+    High: 0,
+    Medium: 0,
+    Low: 0,
+    total: 0,
   });
-  const [expandedFn, setExpandedFn] = useState<string | null>(null);
-  const [filterPriority, setFilterPriority] = useState<string>("All");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
   const fetchAll = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [profileRes, dashRes] = await Promise.all([
+      const [profileRes, dashRes, scopeRes, riskRes] = await Promise.all([
         fetch("/api/csf-profile"),
         fetch("/api/dashboard"),
+        fetch("/api/csf-scope"),
+        fetch("/api/risk-register"),
       ]);
       if (!profileRes.ok) throw new Error("Профайл татаж чадсангүй");
       const profileData = await profileRes.json();
@@ -292,6 +313,62 @@ export default function Home() {
       if (dashRes.ok) {
         const dashData = await dashRes.json();
         setDashSummary(dashData.summary ?? null);
+      }
+      if (scopeRes.ok) {
+        const scopeData = await scopeRes.json();
+        const scope = scopeData.assessment_scope;
+        const inScopeRows = (scopeData.rows ?? []).filter(
+          (r: { scope_status: string; is_mandatory: boolean }) =>
+            r.is_mandatory || r.scope_status === "in_scope",
+        );
+        setScopeSummary({
+          departments: (scope?.selected_department_ids ?? []).length,
+          processes: (scope?.selected_business_process_ids ?? []).length,
+          assets: (scope?.selected_asset_ids ?? []).length,
+          nist_subcategories: inScopeRows.length,
+          scope_status: scope?.status ?? null,
+        });
+      }
+      if (riskRes.ok) {
+        const riskData = await riskRes.json();
+        const risks: Array<{
+          asset_name: string;
+          asset_type: string | null;
+          inherent_risk_level: string | null;
+        }> = riskData.risks ?? [];
+        const counts: RiskLevelCounts = {
+          Critical: 0,
+          High: 0,
+          Medium: 0,
+          Low: 0,
+          total: risks.length,
+        };
+        const assetMap: Record<string, ScopeAssetRisk> = {};
+        const levelOrder = ["Critical", "High", "Medium", "Low"];
+        for (const r of risks) {
+          const lvl = r.inherent_risk_level ?? "Low";
+          if (lvl in counts) counts[lvl as keyof typeof counts]++;
+          const name = r.asset_name ?? "Тодорхойгүй";
+          if (!assetMap[name])
+            assetMap[name] = {
+              asset_name: name,
+              asset_type: r.asset_type,
+              internet_exposed: false,
+              risk_count: 0,
+              highest_level: "Low",
+            };
+          assetMap[name].risk_count++;
+          if (
+            levelOrder.indexOf(lvl) <
+            levelOrder.indexOf(assetMap[name].highest_level)
+          ) {
+            assetMap[name].highest_level = lvl;
+          }
+        }
+        setRiskLevelCounts(counts);
+        setScopeAssetRisks(
+          Object.values(assetMap).sort((a, b) => b.risk_count - a.risk_count),
+        );
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Алдаа гарлаа");
@@ -303,35 +380,6 @@ export default function Home() {
   useEffect(() => {
     fetchAll();
   }, []);
-
-  // ── Save edits ─────────────────────────────────────────────────────────────
-  const saveEdit = async (row: GapRow) => {
-    setSaving(true);
-    try {
-      const res = await fetch("/api/csf-profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          gaps: [
-            {
-              subcategory_code: row.subcategory_code,
-              target_tier: editState.target_tier,
-              owner: editState.owner || null,
-              due_date: editState.due_date || null,
-            },
-          ],
-        }),
-      });
-      if (!res.ok) throw new Error("Хадгалж чадсангүй");
-      const data = await res.json();
-      setGaps(data.gaps ?? []);
-      setEditingId(null);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Алдаа гарлаа");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const radarData = useMemo(() => {
@@ -392,44 +440,6 @@ export default function Home() {
     return { totalGaps, critical, high, avgCurrent, avgTarget };
   }, [gaps]);
 
-  const filteredGaps = useMemo(
-    () =>
-      filterPriority === "All"
-        ? gaps
-        : gaps.filter((g) => g.gap < 0 && g.priority === filterPriority),
-    [gaps, filterPriority],
-  );
-
-  const gapsByFunction = useMemo(() => {
-    const map: Record<string, GapRow[]> = {};
-    for (const g of filteredGaps) {
-      if (!map[g.nist_function]) map[g.nist_function] = [];
-      map[g.nist_function].push(g);
-    }
-    return map;
-  }, [filteredGaps]);
-
-  const startEdit = (row: GapRow) => {
-    setEditingId(row.id);
-    setEditState({
-      target_tier: row.target_tier,
-      owner: row.owner ?? "",
-      due_date: row.due_date ?? "",
-    });
-  };
-
-  const avgTierForFunction = (fn: string) => {
-    const rows = gaps.filter((g) => g.nist_function === fn);
-    if (!rows.length) return null;
-    const cur = +(
-      rows.reduce((a, g) => a + g.current_tier, 0) / rows.length
-    ).toFixed(1);
-    const tgt = +(
-      rows.reduce((a, g) => a + g.target_tier, 0) / rows.length
-    ).toFixed(1);
-    return { cur, tgt };
-  };
-
   // ── Loading / Error ────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -467,11 +477,11 @@ export default function Home() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
             <Shield className="w-8 h-8 text-blue-600" />
-            NIST CSF 2.0 Хянах самбар
+            Хянах самбар
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
-            Байгууллагын кибер аюулгүй байдлын одоогийн болон зорилтот түвшний
-            харьцуулалт
+            Байгууллагын кибер аюулгүй байдлын эрсдэлийн үнэлгээний ерөнхий
+            мэдээлэл — NIST CSF 2.0
           </p>
         </div>
         <button
@@ -793,367 +803,253 @@ export default function Home() {
         </div>
       )}
 
-      {/* Зөрүү */}
+      {/* Risk Assessment Scope */}
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-        {/* Section header */}
+        {/* Header */}
         <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-border bg-muted/20 flex-wrap">
           <div>
-            <h2 className="text-m font-bold text-foreground tracking-tight">
-              Одоогийн болон зорилтот түвшний зөрүү
+            <h2 className="text-base font-bold text-foreground tracking-tight flex items-center gap-2">
+              <Shield className="w-4 h-4 text-blue-500" />
+              Эрсдэлийн үнэлгээний хамрах хүрээ ба дүгнэлт
             </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Scope-д орсон хэлтэс, хөрөнгө, NIST CSF болон тодорхойлогдсон
+              эрсдэлүүдийн хураангуй
+            </p>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {(["All", "Critical", "High", "Medium", "Low"] as const).map(
-              (p) => {
-                const LABEL: Record<string, string> = {
-                  All: "Бүгд",
-                  Critical: "Ноцтой",
-                  High: "Өндөр",
-                  Medium: "Дундаж",
-                  Low: "Бага",
-                };
-                const ACTIVE_CLS: Record<string, string> = {
-                  All: "bg-slate-700 text-white shadow-sm",
-                  Critical: "bg-red-600 text-white shadow-sm",
-                  High: "bg-orange-500 text-white shadow-sm",
-                  Medium: "bg-amber-400 text-white shadow-sm",
-                  Low: "bg-emerald-600 text-white shadow-sm",
-                };
-                return (
-                  <button
-                    key={p}
-                    onClick={() => setFilterPriority(p)}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                      filterPriority === p
-                        ? ACTIVE_CLS[p]
-                        : "bg-muted/60 text-muted-foreground hover:bg-muted border border-border/50"
-                    }`}
-                  >
-                    {LABEL[p]}
-                  </button>
-                );
-              },
-            )}
-          </div>
+          <a
+            href="/csf-scope"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs font-semibold hover:bg-muted transition-colors"
+          >
+            Scope тохиргоо
+            <ArrowRight className="w-3.5 h-3.5" />
+          </a>
         </div>
 
-        {FUNCTION_ORDER.map((fn) => {
-          const rows = gapsByFunction[fn];
-          if (!rows?.length) return null;
-          const isExpanded = expandedFn === fn || expandedFn === null;
-          const tiers = avgTierForFunction(fn);
-          const color = FUNCTION_COLORS[fn] ?? "#6b7280";
-          const critCount = rows.filter(
-            (r) => r.priority === "Critical",
-          ).length;
-          const highCount = rows.filter((r) => r.priority === "High").length;
-
-          return (
-            <div
-              key={fn}
-              className="border-b border-border last:border-b-0"
-              style={{ backgroundColor: `${color}07` }}
-            >
-              {/* Function group header */}
-              <button
-                onClick={() => setExpandedFn(expandedFn === fn ? null : fn)}
-                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors text-left"
-                style={{ borderLeft: `4px solid ${color}` }}
+        <div className="p-5 space-y-5">
+          {/* Scope tiles */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              {
+                label: "Хэлтэс",
+                value: scopeSummary?.departments ?? 0,
+                icon: Building2,
+                color: "text-violet-600",
+                bg: "bg-violet-500",
+              },
+              {
+                label: "Бизнесийн процесс",
+                value: scopeSummary?.processes ?? 0,
+                icon: Database,
+                color: "text-sky-600",
+                bg: "bg-sky-500",
+              },
+              {
+                label: "Мэдээллийн хөрөнгө",
+                value: scopeSummary?.assets ?? 0,
+                icon: Shield,
+                color: "text-emerald-600",
+                bg: "bg-emerald-500",
+              },
+              {
+                label: "NIST CSF дэд ангилал",
+                value: scopeSummary?.nist_subcategories ?? 0,
+                icon: CheckCircle2,
+                color: "text-amber-600",
+                bg: "bg-amber-500",
+              },
+            ].map(({ label, value, icon: Icon, color, bg }) => (
+              <div
+                key={label}
+                className="rounded-xl border bg-white p-4 shadow-sm dark:bg-slate-950"
               >
-                <div className="flex items-center gap-3 min-w-0 flex-wrap">
-                  <span className="font-bold text-sm text-foreground">
-                    {FUNCTION_MN[fn]}
-                  </span>
-                  <span className="text-sm text-muted-foreground">— {fn}</span>
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full font-medium"
-                    style={{ backgroundColor: `${color}18`, color }}
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${bg}`}
                   >
-                    {rows.length} дэд ангилал
-                  </span>
-                  {critCount > 0 && (
-                    <span className="text-xs bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400 px-2 py-0.5 rounded-full font-semibold">
-                      {critCount} ноцтой
-                    </span>
-                  )}
-                  {highCount > 0 && critCount === 0 && (
-                    <span className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-400 px-2 py-0.5 rounded-full font-semibold">
-                      {highCount} өндөр
-                    </span>
-                  )}
+                    <Icon className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium text-muted-foreground leading-tight">
+                      {label}
+                    </p>
+                    <p className={`text-2xl font-bold leading-none ${color}`}>
+                      {value}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4 shrink-0">
-                  {tiers && (
-                    <div className="hidden sm:flex items-center gap-2">
-                      <div className="flex gap-0.5">
-                        {[1, 2, 3, 4].map((t) => (
-                          <div
-                            key={t}
-                            className="h-1.5 w-4 rounded-full"
-                            style={{
-                              backgroundColor: color,
-                              opacity: t <= Math.round(tiers.cur) ? 1 : 0.18,
-                            }}
-                          />
-                        ))}
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        Дундаж: Tier {tiers.cur} → Tier {tiers.tgt}
-                      </span>
-                    </div>
-                  )}
-                  {isExpanded && expandedFn === fn ? (
-                    <ChevronUp className="w-4 h-4 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                  )}
-                </div>
-              </button>
-
-              {/* Rows */}
-              {(expandedFn === fn || expandedFn === null) && (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr
-                        className="text-xs text-muted-foreground uppercase tracking-wider"
-                        style={{ backgroundColor: `${color}18` }}
-                      >
-                        <th className="text-left px-5 py-2.5 font-medium w-32">
-                          Код
-                        </th>
-                        <th className="text-left px-3 py-2.5 font-medium">
-                          Нэр
-                        </th>
-                        <th className="text-center px-3 py-2.5 font-medium w-24">
-                          Одоо
-                        </th>
-                        <th className="text-center px-3 py-2.5 font-medium w-24">
-                          Зорилт
-                        </th>
-                        <th className="text-center px-3 py-2.5 font-medium w-20">
-                          Зөрүү
-                        </th>
-                        <th className="text-center px-3 py-2.5 font-medium w-24">
-                          Эрэмбэ
-                        </th>
-                        <th className="text-left px-3 py-2.5 font-medium w-36">
-                          Хариуцагч
-                        </th>
-                        <th className="text-left px-3 py-2.5 font-medium w-28">
-                          Дуусах
-                        </th>
-                        <th className="w-10" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((row) => {
-                        const isEditing = editingId === row.id;
-                        const gapNum = row.current_tier - row.target_tier;
-                        return (
-                          <tr
-                            key={row.id}
-                            className={`border-t border-border/40 transition-colors ${
-                              row.priority === "Critical"
-                                ? "hover:bg-red-500/10"
-                                : row.priority === "High"
-                                  ? "hover:bg-orange-500/10"
-                                  : "hover:bg-black/5 dark:hover:bg-white/5"
-                            }`}
-                            style={{ backgroundColor: `${color}05` }}
-                          >
-                            {/* Code */}
-                            <td className="px-5 py-3">
-                              <code
-                                className="text-xs font-mono px-2 py-0.5 rounded-md font-bold"
-                                style={{
-                                  backgroundColor: `${color}15`,
-                                  color,
-                                  border: `1px solid ${color}30`,
-                                }}
-                              >
-                                {row.subcategory_code}
-                              </code>
-                            </td>
-
-                            {/* Name */}
-                            <td className="px-3 py-3 max-w-xs">
-                              <span
-                                className="text-xs font-semibold text-foreground leading-snug"
-                                title={row.rationale ?? undefined}
-                              >
-                                {row.subcategory_name}
-                              </span>
-                            </td>
-
-                            {/* Current tier */}
-                            <td className="px-3 py-3 text-center">
-                              <TierBadge tier={row.current_tier} />
-                            </td>
-
-                            {/* Target tier */}
-                            <td className="px-3 py-3 text-center">
-                              {isEditing ? (
-                                <select
-                                  value={editState.target_tier}
-                                  onChange={(e) =>
-                                    setEditState((s) => ({
-                                      ...s,
-                                      target_tier: Number(e.target.value),
-                                    }))
-                                  }
-                                  className="w-20 text-xs border border-border rounded px-1 py-0.5 bg-background"
-                                >
-                                  {[1, 2, 3, 4].map((t) => (
-                                    <option key={t} value={t}>
-                                      Tier {t}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <TierBadge tier={row.target_tier} />
-                              )}
-                            </td>
-
-                            {/* Gap */}
-                            <td className="px-3 py-3 text-center">
-                              {gapNum < 0 ? (
-                                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400">
-                                  ▼ {Math.abs(gapNum)}
-                                </span>
-                              ) : gapNum === 0 ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400">
-                                  ✓
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-400">
-                                  ▲ {gapNum}
-                                </span>
-                              )}
-                            </td>
-
-                            {/* Priority */}
-                            <td className="px-3 py-3 text-center">
-                              <PriorityBadge priority={row.priority} />
-                            </td>
-
-                            {/* Owner */}
-                            <td className="px-3 py-3">
-                              {isEditing ? (
-                                <input
-                                  value={editState.owner}
-                                  onChange={(e) =>
-                                    setEditState((s) => ({
-                                      ...s,
-                                      owner: e.target.value,
-                                    }))
-                                  }
-                                  placeholder="Хариуцагч"
-                                  className="w-full text-xs border border-border rounded px-2 py-1 bg-background"
-                                />
-                              ) : (
-                                <span className="text-xs text-muted-foreground">
-                                  {row.owner ?? "—"}
-                                </span>
-                              )}
-                            </td>
-
-                            {/* Due date */}
-                            <td className="px-3 py-3">
-                              {isEditing ? (
-                                <input
-                                  type="date"
-                                  value={editState.due_date}
-                                  onChange={(e) =>
-                                    setEditState((s) => ({
-                                      ...s,
-                                      due_date: e.target.value,
-                                    }))
-                                  }
-                                  className="w-full text-xs border border-border rounded px-2 py-1 bg-background"
-                                />
-                              ) : (
-                                <span className="text-xs text-muted-foreground">
-                                  {row.due_date
-                                    ? new Date(row.due_date).toLocaleDateString(
-                                        "mn-MN",
-                                      )
-                                    : "—"}
-                                </span>
-                              )}
-                            </td>
-
-                            {/* Edit / Save */}
-                            <td className="px-3 py-3 text-center">
-                              {isEditing ? (
-                                <div className="flex items-center justify-center gap-1">
-                                  <button
-                                    onClick={() => saveEdit(row)}
-                                    disabled={saving}
-                                    className="p-1.5 rounded bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
-                                    title="Хадгалах"
-                                  >
-                                    <Save className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingId(null)}
-                                    className="p-1.5 rounded bg-muted text-foreground hover:bg-muted/80 transition-colors"
-                                    title="Цуцлах"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => startEdit(row)}
-                                  className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground"
-                                  title="Засах"
-                                >
-                                  <Edit3 className="w-3 h-3" />
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {filteredGaps.length === 0 && (
-          <div className="py-14 text-center text-muted-foreground text-sm">
-            Үл нийцэл олдсонгүй
+              </div>
+            ))}
           </div>
-        )}
-      </div>
 
-      {/* Tier legend */}
-      <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-        <h2 className="text-sm font-semibold text-foreground mb-3">
-          Tier тайлбар
-        </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {Object.entries(TIER_LABELS).map(([tier, { label, desc, color }]) => (
-            <div key={tier} className="bg-muted/40 rounded-lg p-3">
-              <div className={`text-sm font-bold ${color}`}>
-                {label} — {desc}
+          {/* Risk level breakdown + Asset risks */}
+          {riskLevelCounts.total === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center">
+              <ShieldAlert className="mb-3 h-9 w-9 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground">
+                Эрсдэл тодорхойлогдоогүй байна
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Эрсдэлийн бүртгэлд очиж эрсдэлүүдийг нэмнэ үү
+              </p>
+              <a
+                href="/risk-register"
+                className="mt-3 flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold hover:bg-muted transition-colors"
+              >
+                Эрсдэл нэмэх <ArrowRight className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          ) : (
+            <div className="grid gap-5 lg:grid-cols-2">
+              {/* Risk level bars */}
+              <div className="rounded-xl border bg-white p-4 dark:bg-slate-950">
+                <h3 className="mb-4 text-sm font-semibold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Эрсдэлийн түвшний хуваарилалт ({riskLevelCounts.total} нийт)
+                </h3>
+                <div className="space-y-3">
+                  {(["Critical", "High", "Medium", "Low"] as const).map(
+                    (lvl) => {
+                      const META = {
+                        Critical: {
+                          label: "Критик",
+                          color: "bg-red-500",
+                          text: "text-red-700 dark:text-red-300",
+                        },
+                        High: {
+                          label: "Өндөр",
+                          color: "bg-orange-500",
+                          text: "text-orange-700 dark:text-orange-300",
+                        },
+                        Medium: {
+                          label: "Дунд",
+                          color: "bg-yellow-400",
+                          text: "text-yellow-700 dark:text-yellow-300",
+                        },
+                        Low: {
+                          label: "Бага",
+                          color: "bg-emerald-500",
+                          text: "text-emerald-700 dark:text-emerald-300",
+                        },
+                      };
+                      const m = META[lvl];
+                      const count = riskLevelCounts[lvl];
+                      const pct =
+                        riskLevelCounts.total > 0
+                          ? Math.round((count / riskLevelCounts.total) * 100)
+                          : 0;
+                      return (
+                        <div key={lvl} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className={`font-semibold ${m.text}`}>
+                              {m.label}
+                            </span>
+                            <span className="font-bold">
+                              {count}{" "}
+                              <span className="font-normal text-muted-foreground">
+                                ({pct}%)
+                              </span>
+                            </span>
+                          </div>
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                            <div
+                              className={`h-full rounded-full ${m.color}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    },
+                  )}
+                </div>
               </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {tier === "1" &&
-                  "Эрсдэлийн удирдлагын тогтсон процессгүй, ихэвчлэн асуудал гарсны дараа арга хэмжээ авдаг."}
-                {tier === "2" &&
-                  "Эрсдэлийг тодорхой хэмжээнд ойлгож, зарим бодлого, журам хэрэгжүүлдэг боловч байгууллагын хэмжээнд бүрэн хэрэгжээгүй."}
-                {tier === "3" &&
-                  "Эрсдэлийн удирдлагын процесс нь баримт болон стандартчилагдсан бөгөөд байгууллагын хэмжээнд тогтмол"}
-                {tier === "4" &&
-                  "Байгууллага эрсдэлийг тасралтгүй хянаж, шинэ аюул заналд хурдан дасан зохицож, сайжруулалтыг идэвхтэй хийдэг"}
+
+              {/* Asset risks */}
+              <div className="rounded-xl border bg-white p-4 dark:bg-slate-950">
+                <h3 className="mb-4 text-sm font-semibold flex items-center gap-2">
+                  <Database className="h-4 w-4 text-sky-500" />
+                  Хамгийн их эрсдэлтэй хөрөнгүүд
+                </h3>
+                <div className="space-y-2 max-h-52 overflow-y-auto">
+                  {scopeAssetRisks.map((a) => {
+                    const LVL_DOT: Record<string, string> = {
+                      Critical: "bg-red-500",
+                      High: "bg-orange-500",
+                      Medium: "bg-yellow-400",
+                      Low: "bg-emerald-500",
+                    };
+                    const LVL_BADGE: Record<string, string> = {
+                      Critical:
+                        "border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300",
+                      High: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-800 dark:bg-orange-950/30 dark:text-orange-300",
+                      Medium:
+                        "border-yellow-200 bg-yellow-50 text-yellow-700 dark:border-yellow-800 dark:bg-yellow-950/30 dark:text-yellow-300",
+                      Low: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300",
+                    };
+                    const LVL_MN: Record<string, string> = {
+                      Critical: "Критик",
+                      High: "Өндөр",
+                      Medium: "Дунд",
+                      Low: "Бага",
+                    };
+                    return (
+                      <div
+                        key={a.asset_name}
+                        className="flex items-center gap-3 rounded-lg border p-2.5"
+                      >
+                        <div
+                          className={`h-2 w-2 shrink-0 rounded-full ${LVL_DOT[a.highest_level] ?? "bg-slate-400"}`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {a.asset_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {a.asset_type}
+                            {a.internet_exposed && (
+                              <span className="ml-1.5 inline-flex items-center gap-0.5 text-orange-600">
+                                <Globe2 className="h-2.5 w-2.5" />
+                                Internet
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${LVL_BADGE[a.highest_level] ?? ""}`}
+                          >
+                            {LVL_MN[a.highest_level] ?? a.highest_level}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {a.risk_count} эрсдэл
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          ))}
+          )}
+
+          {/* Quick links */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+            {[
+              { href: "/risk-register", label: "Эрсдэлийн бүртгэл" },
+              { href: "/assets", label: "Хөрөнгийн бүртгэл" },
+              { href: "/controls", label: "Хяналтын зөвлөмж" },
+              { href: "/reports", label: "Тайлан" },
+            ].map(({ href, label }) => (
+              <a
+                key={href}
+                href={href}
+                className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs font-medium hover:bg-muted transition-colors"
+              >
+                {label}
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+              </a>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -1190,69 +1086,5 @@ function KpiCard({
       <div className="text-2xl font-bold text-foreground">{value}</div>
       <div className="text-xs text-muted-foreground mt-0.5">{label}</div>
     </div>
-  );
-}
-
-function TierBadge({ tier }: { tier: number }) {
-  const configs: Record<number, { label: string; cls: string }> = {
-    1: {
-      label: "Tier 1",
-      cls: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400 border border-red-200 dark:border-red-900",
-    },
-    2: {
-      label: "Tier 2",
-      cls: "bg-orange-100 text-orange-700 dark:bg-orange-950/50 dark:text-orange-400 border border-orange-200 dark:border-orange-900",
-    },
-    3: {
-      label: "Tier 3",
-      cls: "bg-yellow-100 text-yellow-700 dark:bg-yellow-950/50 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-900",
-    },
-    4: {
-      label: "Tier 4",
-      cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900",
-    },
-  };
-  const { label, cls } = configs[tier] ?? {
-    label: `Tier ${tier}`,
-    cls: "bg-muted text-muted-foreground border border-border",
-  };
-  return (
-    <span
-      className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${cls}`}
-    >
-      {label}
-    </span>
-  );
-}
-
-function PriorityBadge({ priority }: { priority: string }) {
-  const configs: Record<string, { label: string; cls: string }> = {
-    Critical: {
-      label: "Ноцтой",
-      cls: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-400 border border-red-200 dark:border-red-900",
-    },
-    High: {
-      label: "Өндөр",
-      cls: "bg-orange-100 text-orange-700 dark:bg-orange-950/60 dark:text-orange-400 border border-orange-200 dark:border-orange-900",
-    },
-    Medium: {
-      label: "Дундаж",
-      cls: "bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-400 border border-amber-200 dark:border-amber-900",
-    },
-    Low: {
-      label: "Бага",
-      cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900",
-    },
-  };
-  const { label, cls } = configs[priority] ?? {
-    label: priority,
-    cls: "bg-muted text-muted-foreground border border-border",
-  };
-  return (
-    <span
-      className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}
-    >
-      {label}
-    </span>
   );
 }

@@ -9,6 +9,7 @@ import {
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
+  Home,
   Shield,
   ShieldAlert,
   ShieldCheck,
@@ -29,9 +30,9 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   {
-    label: "Xянах самбар",
+    label: "Эхлэх",
     href: "/",
-    icon: BarChart3,
+    icon: Home,
     category: "",
   },
   {
