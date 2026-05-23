@@ -15,7 +15,11 @@ async function runMigration() {
 
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: false,
+    ssl:
+      process.env.DATABASE_URL.includes("sslmode=require") ||
+      process.env.DATABASE_URL.includes("neon.tech")
+        ? { rejectUnauthorized: false }
+        : false,
   });
 
   try {

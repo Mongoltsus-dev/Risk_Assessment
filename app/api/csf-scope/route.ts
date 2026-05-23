@@ -61,6 +61,34 @@ type ScopeInventoryAsset = {
 
 async function ensureSchema() {
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS csf_subcategories (
+      id SERIAL PRIMARY KEY,
+      subcategory_id      VARCHAR(20)  UNIQUE NOT NULL,
+      title               TEXT,
+      nist_function       VARCHAR(50)  NOT NULL,
+      function_code       VARCHAR(10),
+      category_name       VARCHAR(255),
+      category_code       VARCHAR(20),
+      outcome_description TEXT,
+      current_tier        INTEGER,
+      target_tier         INTEGER,
+      gap                 INTEGER,
+      risk_score          INTEGER,
+      risk_level          VARCHAR(20),
+      primary_owner       VARCHAR(255),
+      stakeholders        TEXT,
+      tools               TEXT,
+      control_links       TEXT,
+      status              VARCHAR(50),
+      target_date         VARCHAR(20),
+      notes               TEXT,
+      created_at          TIMESTAMP DEFAULT NOW(),
+      updated_at          TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`ALTER TABLE csf_subcategories ADD COLUMN IF NOT EXISTS title TEXT`);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS csf_scope_subcategories (
       subcategory_id   VARCHAR(20) PRIMARY KEY,
       scope_status     VARCHAR(20) NOT NULL DEFAULT 'undecided',

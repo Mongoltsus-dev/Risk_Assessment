@@ -3,8 +3,48 @@ import { pool } from "@/lib/db";
 import bcrypt from "bcrypt";
 import { NextRequest, NextResponse } from "next/server";
 
+async function ensureUsersSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      full_name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role_id INTEGER NOT NULL DEFAULT 2,
+      status VARCHAR(50) NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255)`,
+  );
+  await pool.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255)`,
+  );
+  await pool.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`,
+  );
+  await pool.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS role_id INTEGER NOT NULL DEFAULT 2`,
+  );
+  await pool.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(50) NOT NULL DEFAULT 'active'`,
+  );
+  await pool.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()`,
+  );
+  await pool.query(
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()`,
+  );
+  await pool.query(
+    `CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique_idx ON users (LOWER(email))`,
+  );
+}
+
 export async function POST(req: NextRequest) {
   try {
+    await ensureUsersSchema();
     const payload = await req.json();
     const parsed = signUpSchema.safeParse(payload);
 
@@ -59,7 +99,7 @@ export async function POST(req: NextRequest) {
       },
       { status: 201 },
     );
-  } catch (error: unknown) /* eslint-disable-line @typescript-eslint/no-explicit-any */ {
+  } catch (error: unknown) {
     console.error("Register error:", error);
     return NextResponse.json(
       {

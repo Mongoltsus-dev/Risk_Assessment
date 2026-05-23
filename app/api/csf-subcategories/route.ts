@@ -17,6 +17,7 @@ async function ensureSchema() {
     CREATE TABLE IF NOT EXISTS csf_subcategories (
       id SERIAL PRIMARY KEY,
       subcategory_id      VARCHAR(20)  UNIQUE NOT NULL,
+      title               TEXT,
       nist_function       VARCHAR(50)  NOT NULL,
       function_code       VARCHAR(10),
       category_name       VARCHAR(255),
@@ -38,6 +39,7 @@ async function ensureSchema() {
       updated_at          TIMESTAMP DEFAULT NOW()
     )
   `);
+  await pool.query(`ALTER TABLE csf_subcategories ADD COLUMN IF NOT EXISTS title TEXT`);
 }
 
 export async function GET() {

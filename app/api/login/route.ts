@@ -2,8 +2,24 @@ import { pool } from "@/lib/db";
 import bcrypt from "bcrypt";
 import { NextRequest, NextResponse } from "next/server";
 
+async function ensureUsersSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      full_name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role_id INTEGER NOT NULL DEFAULT 2,
+      status VARCHAR(50) NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
 export async function POST(req: NextRequest) {
   try {
+    await ensureUsersSchema();
     const { email, password } = await req.json();
 
     if (!email || !password) {
