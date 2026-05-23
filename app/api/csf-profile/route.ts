@@ -57,6 +57,65 @@ type AssetDrivenGap = {
 
 async function ensureCsfProfileSchema() {
   await pool.query(`
+    CREATE TABLE IF NOT EXISTS assets (
+      id SERIAL PRIMARY KEY,
+      asset_name VARCHAR(255) NOT NULL DEFAULT 'Unnamed Asset',
+      criticality VARCHAR(100) NOT NULL DEFAULT 'Medium',
+      data_classification VARCHAR(50),
+      access_level VARCHAR(50),
+      internet_exposed BOOLEAN DEFAULT FALSE,
+      backup_enabled BOOLEAN DEFAULT FALSE,
+      encryption_enabled BOOLEAN DEFAULT FALSE,
+      mfa_enabled BOOLEAN DEFAULT FALSE,
+      logging_enabled BOOLEAN DEFAULT FALSE,
+      status VARCHAR(50) DEFAULT 'Active',
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  const assetColumns: [string, string][] = [
+    ["criticality", "VARCHAR(100) NOT NULL DEFAULT 'Medium'"],
+    ["data_classification", "VARCHAR(50)"],
+    ["access_level", "VARCHAR(50)"],
+    ["internet_exposed", "BOOLEAN DEFAULT FALSE"],
+    ["backup_enabled", "BOOLEAN DEFAULT FALSE"],
+    ["encryption_enabled", "BOOLEAN DEFAULT FALSE"],
+    ["mfa_enabled", "BOOLEAN DEFAULT FALSE"],
+    ["logging_enabled", "BOOLEAN DEFAULT FALSE"],
+    ["status", "VARCHAR(50) DEFAULT 'Active'"],
+  ];
+  for (const [column, definition] of assetColumns) {
+    await pool.query(
+      `ALTER TABLE assets ADD COLUMN IF NOT EXISTS ${column} ${definition}`,
+    );
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS vulnerabilities (
+      id SERIAL PRIMARY KEY,
+      asset_id INTEGER REFERENCES assets(id) ON DELETE CASCADE,
+      title VARCHAR(255) NOT NULL DEFAULT 'Untitled vulnerability',
+      severity VARCHAR(50) NOT NULL DEFAULT 'Medium',
+      status VARCHAR(50) DEFAULT 'open',
+      source VARCHAR(100) DEFAULT 'manual',
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `);
+  const vulnerabilityColumns: [string, string][] = [
+    ["asset_id", "INTEGER REFERENCES assets(id) ON DELETE CASCADE"],
+    ["title", "VARCHAR(255) NOT NULL DEFAULT 'Untitled vulnerability'"],
+    ["severity", "VARCHAR(50) NOT NULL DEFAULT 'Medium'"],
+    ["status", "VARCHAR(50) DEFAULT 'open'"],
+    ["source", "VARCHAR(100) DEFAULT 'manual'"],
+  ];
+  for (const [column, definition] of vulnerabilityColumns) {
+    await pool.query(
+      `ALTER TABLE vulnerabilities ADD COLUMN IF NOT EXISTS ${column} ${definition}`,
+    );
+  }
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS csf_profile_gaps (
       id SERIAL PRIMARY KEY,
       subcategory_code VARCHAR(50) UNIQUE NOT NULL,
