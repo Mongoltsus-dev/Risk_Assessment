@@ -2101,7 +2101,7 @@ export default function CsfScopePage() {
           <div className="rounded-xl border bg-white p-4 dark:bg-slate-950">
             <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
               <Building2 className="h-4 w-4 text-violet-500" />
-              Хэлтэснүүд
+              Хэлтэсүүд
             </h3>
             {savedDepts.length === 0 ? (
               <p className="text-xs text-muted-foreground">Хэлтэс сонгоогүй</p>
