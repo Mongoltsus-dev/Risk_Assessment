@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Activity,
   AlertTriangle,
-  ArrowRight,
   Bell,
   Building2,
   CheckCircle2,
@@ -19,7 +18,6 @@ import {
   Plus,
   RotateCcw,
   ScanSearch,
-  ShieldAlert,
   ShieldCheck,
   Trash2,
   Users,
@@ -107,12 +105,11 @@ type ScopeResponse = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { label: "Хэлтэс", sublabel: "Scope-д орох хэлтэснүүд" },
-  { label: "Процессууд", sublabel: "Бизнесийн үйл явц" },
+  { label: "Хэлтэс", sublabel: "Хамрагдах хэлтэсүүд" },
+  { label: "Процессууд", sublabel: "Бизнесийн процесс" },
   { label: "Хөрөнгүүд", sublabel: "Мэдээллийн хөрөнгүүд" },
   { label: "NIST CSF", sublabel: "Дэд ангилал сонгох" },
-  { label: "Баталгаажуулах", sublabel: "Scope хянах & хадгалах" },
-  { label: "Эрсдэлийн дүгнэлт", sublabel: "Тодорхойлогдсон эрсдэлүүд" },
+  { label: "Баталгаажуулах", sublabel: "Scope хянах" },
 ];
 
 const FUNCTION_ORDER = ["GV", "ID", "PR", "DE", "RS", "RC"];
@@ -136,7 +133,7 @@ const FUNCTION_META: Record<
   },
   ID: {
     name: "Identify",
-    mn: "Таних",
+    mn: "Тодорхойлох",
     color: "text-sky-700 dark:text-sky-300",
     bg: "bg-sky-500",
     icon: ScanSearch,
@@ -157,7 +154,7 @@ const FUNCTION_META: Record<
   },
   RS: {
     name: "Respond",
-    mn: "Хариу үйлдэл",
+    mn: "Хариу арга хэмжээ авах",
     color: "text-rose-700 dark:text-rose-300",
     bg: "bg-rose-500",
     icon: Bell,
@@ -304,10 +301,9 @@ function Step1Departments({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold">Хэлтэснүүд</h2>
+        <h2 className="text-xl font-bold">Хэлтэсүүд</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Scope-д орох хэлтэснүүдийг нэмж, шалгаарай. Тэмдэглэгдсэн хэлтэснүүд
-          дараагийн алхамд хэрэглэгдэнэ.
+          Үнэлгээнд хамрагдах хэлтэсүүдийг сонгох
         </p>
       </div>
 
@@ -353,7 +349,7 @@ function Step1Departments({
                 onChange={(e) =>
                   setForm((f) => ({ ...f, owner_name: e.target.value }))
                 }
-                placeholder="Нэр, гарын үсэг"
+                placeholder="Нэр, албан тушаал"
               />
             </div>
             <div>
@@ -367,7 +363,7 @@ function Step1Departments({
                 }
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
-                {["Critical", "High", "Medium", "Low"].map((c) => (
+                {["Маш өндөр", "Өндөр", "Дундаж", "Бага"].map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -570,10 +566,10 @@ function Step2Processes({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold">Бизнесийн процессууд</h2>
+        <h2 className="text-xl font-bold">Бизнес процессууд</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Scope-д орох хэлтэсүүдийн бүх үндсэн бизнесийн процессуудыг нэмж,
-          сонгоно уу.
+          Эрсдэлийн үнэлгээнд хамрагдах хэлтэсүүдийн бүх үндсэн бизнес
+          процессуудыг оруулна уу.
         </p>
       </div>
 
@@ -611,9 +607,7 @@ function Step2Processes({
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium">
-                Хэлтэс / Функц
-              </label>
+              <label className="mb-1 block text-xs font-medium">Хэлтэс</label>
               <select
                 value={form.business_function}
                 onChange={(e) =>
@@ -629,19 +623,6 @@ function Step2Processes({
                       {d.department_name}
                     </option>
                   ))}
-                {[
-                  "Operations",
-                  "Sales",
-                  "Finance",
-                  "HR",
-                  "IT",
-                  "Customer Service",
-                  "Compliance",
-                ].map((fn) => (
-                  <option key={fn} value={fn}>
-                    {fn}
-                  </option>
-                ))}
               </select>
             </div>
             <div>
@@ -653,7 +634,7 @@ function Step2Processes({
                 onChange={(e) =>
                   setForm((f) => ({ ...f, business_owner: e.target.value }))
                 }
-                placeholder="Процессийн эзэн"
+                placeholder="Бизнес процесс хариуцагчийн нэр, албан тушаал"
               />
             </div>
             <div>
@@ -1625,341 +1606,6 @@ function Step5Review({
   );
 }
 
-// ─── Step 6: Risk Scope Summary ───────────────────────────────────────────────
-
-type RiskScopeEntry = {
-  risk_id: number;
-  risk_code: string;
-  asset_name: string | null;
-  asset_type: string | null;
-  threat_name: string | null;
-  risk_title: string;
-  inherent_risk_score: number | null;
-  inherent_risk_level: string | null;
-  nist_csf_function: string | null;
-  status: string | null;
-};
-
-const RISK_LEVEL_META: Record<
-  string,
-  { label: string; color: string; bg: string; border: string }
-> = {
-  Critical: {
-    label: "Критик",
-    color: "text-red-700 dark:text-red-300",
-    bg: "bg-red-500",
-    border: "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30",
-  },
-  High: {
-    label: "Өндөр",
-    color: "text-orange-700 dark:text-orange-300",
-    bg: "bg-orange-500",
-    border:
-      "border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30",
-  },
-  Medium: {
-    label: "Дунд",
-    color: "text-yellow-700 dark:text-yellow-300",
-    bg: "bg-yellow-400",
-    border:
-      "border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950/30",
-  },
-  Low: {
-    label: "Бага",
-    color: "text-emerald-700 dark:text-emerald-300",
-    bg: "bg-emerald-500",
-    border:
-      "border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30",
-  },
-};
-
-function Step6RiskScope({
-  selectedAssetIds,
-}: {
-  selectedAssetIds: Set<number>;
-}) {
-  const [risks, setRisks] = useState<RiskScopeEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      try {
-        const res = await fetch("/api/risk-register");
-        const data = await res.json();
-        setRisks((data.risks ?? []) as RiskScopeEntry[]);
-      } catch {
-        setRisks([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []);
-
-  // Filter to in-scope assets only (if we have selected asset ids, filter; else show all)
-  const scopedRisks = useMemo(() => {
-    if (selectedAssetIds.size === 0) return risks;
-    return risks.filter((r) => {
-      // risk_register has asset_id — but we only have asset_name here; show all if can't filter
-      return true;
-    });
-  }, [risks, selectedAssetIds]);
-
-  const byLevel = useMemo(() => {
-    const counts: Record<string, number> = {
-      Critical: 0,
-      High: 0,
-      Medium: 0,
-      Low: 0,
-      Unknown: 0,
-    };
-    for (const r of scopedRisks) {
-      const lvl = r.inherent_risk_level ?? "Unknown";
-      counts[lvl] = (counts[lvl] ?? 0) + 1;
-    }
-    return counts;
-  }, [scopedRisks]);
-
-  const byFunction = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of scopedRisks) {
-      const fn = r.nist_csf_function || "Тодорхойгүй";
-      map[fn] = (map[fn] ?? 0) + 1;
-    }
-    return Object.entries(map).sort((a, b) => b[1] - a[1]);
-  }, [scopedRisks]);
-
-  const byAsset = useMemo(() => {
-    const map: Record<string, { count: number; highestLevel: string }> = {};
-    const levelOrder = ["Critical", "High", "Medium", "Low"];
-    for (const r of scopedRisks) {
-      const name = r.asset_name ?? "Тодорхойгүй";
-      if (!map[name]) map[name] = { count: 0, highestLevel: "Low" };
-      map[name].count += 1;
-      const lvl = r.inherent_risk_level ?? "Low";
-      if (
-        levelOrder.indexOf(lvl) < levelOrder.indexOf(map[name].highestLevel)
-      ) {
-        map[name].highestLevel = lvl;
-      }
-    }
-    return Object.entries(map)
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 8);
-  }, [scopedRisks]);
-
-  if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <div className="h-7 w-7 animate-spin rounded-full border-4 border-slate-200 border-t-slate-700" />
-      </div>
-    );
-  }
-
-  const total = scopedRisks.length;
-
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold">Эрсдэлийн дүгнэлт</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Тодорхойлогдсон эрсдэлүүдийн хураангуй. Эрсдэлийн бүртгэлд
-            үргэлжлүүлнэ үү.
-          </p>
-        </div>
-        <a href="/risk-register">
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-slate-300"
-          >
-            Эрсдэлийн бүртгэл
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        </a>
-      </div>
-
-      {/* Risk level tiles */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {(["Critical", "High", "Medium", "Low"] as const).map((lvl) => {
-          const meta = RISK_LEVEL_META[lvl];
-          const count = byLevel[lvl] ?? 0;
-          return (
-            <div key={lvl} className={`rounded-xl border p-4 ${meta.border}`}>
-              <div className="flex items-center justify-between">
-                <span
-                  className={`text-xs font-semibold uppercase tracking-wide ${meta.color}`}
-                >
-                  {meta.label}
-                </span>
-                <div className={`h-2 w-2 rounded-full ${meta.bg}`} />
-              </div>
-              <p className={`mt-2 text-3xl font-bold ${meta.color}`}>{count}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {total > 0 ? Math.round((count / total) * 100) : 0}% нийт
-                эрсдэлийн
-              </p>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* No risks state */}
-      {total === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
-          <ShieldAlert className="mb-3 h-10 w-10 text-muted-foreground/40" />
-          <p className="text-sm font-medium text-muted-foreground">
-            Эрсдэл тодорхойлогдоогүй байна
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Эрсдэлийн бүртгэл хуудсанд очиж эрсдэлүүдийг нэмнэ үү
-          </p>
-          <a href="/risk-register" className="mt-4">
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-muted"
-            >
-              Эрсдэл нэмэх <ArrowRight className="h-4 w-4" />
-            </button>
-          </a>
-        </div>
-      )}
-
-      {total > 0 && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Risks by NIST function */}
-          <div className="rounded-xl border bg-white p-4 dark:bg-slate-950">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-              <ShieldCheck className="h-4 w-4 text-emerald-500" />
-              NIST CSF функцээр ({total} эрсдэл)
-            </h3>
-            <div className="space-y-3">
-              {byFunction.map(([fn, count]) => {
-                const fnCode = fn.split(" ")[0] as string;
-                const meta = FUNCTION_META[fnCode];
-                const pct = Math.round((count / total) * 100);
-                const Icon = meta?.icon ?? ShieldAlert;
-                return (
-                  <div key={fn} className="space-y-1">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        {meta ? (
-                          <div
-                            className={`flex h-5 w-5 items-center justify-center rounded ${meta.bg}`}
-                          >
-                            <Icon className="h-3 w-3 text-white" />
-                          </div>
-                        ) : (
-                          <div className="flex h-5 w-5 items-center justify-center rounded bg-slate-400">
-                            <ShieldAlert className="h-3 w-3 text-white" />
-                          </div>
-                        )}
-                        <span className="font-medium">
-                          {meta ? `${fnCode} — ${meta.mn}` : fn}
-                        </span>
-                      </div>
-                      <span className="font-semibold">{count}</span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                      <div
-                        className={`h-full rounded-full ${meta?.bg ?? "bg-slate-400"}`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Risks by asset */}
-          <div className="rounded-xl border bg-white p-4 dark:bg-slate-950">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-              <Database className="h-4 w-4 text-sky-500" />
-              Хамгийн их эрсдэлтэй хөрөнгүүд
-            </h3>
-            <div className="space-y-2">
-              {byAsset.map(([assetName, info]) => {
-                const meta =
-                  RISK_LEVEL_META[info.highestLevel] ?? RISK_LEVEL_META.Low;
-                return (
-                  <div
-                    key={assetName}
-                    className="flex items-center gap-3 rounded-lg border p-2.5"
-                  >
-                    <div
-                      className={`h-2 w-2 shrink-0 rounded-full ${meta.bg}`}
-                    />
-                    <span className="flex-1 truncate text-sm font-medium">
-                      {assetName}
-                    </span>
-                    <span
-                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${meta.border} ${meta.color}`}
-                    >
-                      {info.count} эрсдэл
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Recent risks list */}
-          <div className="rounded-xl border bg-white p-4 dark:bg-slate-950 lg:col-span-2">
-            <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              Сүүлийн эрсдэлүүд
-            </h3>
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {scopedRisks.slice(0, 10).map((r) => {
-                const lvl = r.inherent_risk_level ?? "Low";
-                const meta = RISK_LEVEL_META[lvl] ?? RISK_LEVEL_META.Low;
-                return (
-                  <div
-                    key={r.risk_id}
-                    className="flex items-center gap-3 rounded-lg border p-2.5"
-                  >
-                    <div
-                      className={`h-2 w-2 shrink-0 rounded-full ${meta.bg}`}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
-                        {r.risk_title}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {r.asset_name} • {r.threat_name}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {r.inherent_risk_score != null && (
-                        <span className="text-xs font-bold text-muted-foreground">
-                          {r.inherent_risk_score}/25
-                        </span>
-                      )}
-                      <span
-                        className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${meta.border} ${meta.color}`}
-                      >
-                        {meta.label}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-              {scopedRisks.length > 10 && (
-                <p className="pt-1 text-center text-xs text-muted-foreground">
-                  + {scopedRisks.length - 10} эрсдэл байна
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function CsfScopePage() {
@@ -1988,6 +1634,9 @@ export default function CsfScopePage() {
     Record<string, { scope_status: ScopeStatus; exclusion_reason: string }>
   >({});
 
+  // editMode: true while the user is editing an already-finalized scope
+  const [editMode, setEditMode] = useState(false);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -1999,12 +1648,17 @@ export default function CsfScopePage() {
       // Init selections from saved assessment scope
       const scope = payload.assessment_scope;
 
-      if ((scope.selected_department_ids ?? []).length > 0) {
-        setSelectedDeptIds(
-          new Set((scope.selected_department_ids ?? []).map(Number)),
-        );
+      // Filter saved IDs against currently-existing departments (stale IDs from
+      // deleted English departments would otherwise show a wrong counter)
+      const validDeptIdSet = new Set(payload.departments.map((d) => d.id));
+      const savedDeptIds = (scope.selected_department_ids ?? [])
+        .map(Number)
+        .filter((id) => validDeptIdSet.has(id));
+
+      if (savedDeptIds.length > 0) {
+        setSelectedDeptIds(new Set(savedDeptIds));
       } else {
-        // First visit — auto-select the 6 default Mongolian departments
+        // First visit (or all saved IDs were stale) — auto-select 6 defaults
         const PRE_SELECTED_DEPT_NAMES = new Set([
           "Мэдээллийн технологийн хэлтэс",
           "Санхүүгийн хэлтэс",
@@ -2151,6 +1805,8 @@ export default function CsfScopePage() {
       if (!res.ok) throw new Error(payload.error ?? "Хадгалж чадсангүй");
       setData(payload);
       setMessage({ tone: "success", text: "Scope амжилттай тогтоогдлоо!" });
+      setEditMode(false);
+      setStep(1);
     } catch (err) {
       setMessage({
         tone: "error",
@@ -2300,7 +1956,7 @@ export default function CsfScopePage() {
     } else if (step === 4) {
       await saveNistScope();
     }
-    if (step < 6) setStep(step + 1);
+    if (step < 5) setStep(step + 1);
   }
 
   function handlePrev() {
@@ -2328,6 +1984,228 @@ export default function CsfScopePage() {
         <Button size="sm" onClick={fetchData}>
           Дахин оролдох
         </Button>
+      </div>
+    );
+  }
+
+  // ── Scope Summary View (shown when scope is Active and not in edit mode) ───
+  const isFinalized = data.assessment_scope?.status === "Active";
+  if (isFinalized && !editMode) {
+    const savedDepts = data.departments.filter((d) =>
+      (data.assessment_scope.selected_department_ids ?? [])
+        .map(Number)
+        .includes(d.id),
+    );
+    const savedProcs = data.business_processes.filter((p) =>
+      (data.assessment_scope.selected_business_process_ids ?? [])
+        .map(Number)
+        .includes(p.id),
+    );
+    const savedAssets = data.assets.filter((a) =>
+      (data.assessment_scope.selected_asset_ids ?? [])
+        .map(Number)
+        .includes(a.id),
+    );
+    const inScopeCount = data.rows.filter(
+      (r) => r.scope_status === "in_scope",
+    ).length;
+
+    const tiles = [
+      {
+        label: "Хэлтэс",
+        value: savedDepts.length,
+        color: "bg-violet-500",
+        icon: Building2,
+      },
+      {
+        label: "Процесс",
+        value: savedProcs.length,
+        color: "bg-sky-500",
+        icon: Database,
+      },
+      {
+        label: "Хөрөнгө",
+        value: savedAssets.length,
+        color: "bg-emerald-500",
+        icon: ShieldCheck,
+      },
+      {
+        label: "NIST CSF дэд ангилал",
+        value: inScopeCount,
+        color: "bg-amber-500",
+        icon: CheckCircle2,
+      },
+    ];
+
+    return (
+      <div className="mx-auto max-w-5xl space-y-6 p-4 sm:p-6">
+        {/* Header */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Эрсдэлийн үнэлгээний хамрах хүрээ
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {data.assessment_scope.assessment_name}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Идэвхтэй
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEditMode(true);
+                setStep(1);
+                setMessage(null);
+              }}
+            >
+              Scope өөрчлөх
+            </Button>
+          </div>
+        </div>
+
+        {/* Tiles */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {tiles.map((tile) => {
+            const Icon = tile.icon;
+            return (
+              <div
+                key={tile.label}
+                className="rounded-xl border bg-white p-4 shadow-sm dark:bg-slate-950"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${tile.color}`}
+                  >
+                    <Icon className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{tile.value}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {tile.label}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Detail panels */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          {/* Departments */}
+          <div className="rounded-xl border bg-white p-4 dark:bg-slate-950">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Building2 className="h-4 w-4 text-violet-500" />
+              Хэлтэснүүд
+            </h3>
+            {savedDepts.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Хэлтэс сонгоогүй</p>
+            ) : (
+              <div className="space-y-1.5">
+                {savedDepts.map((d) => (
+                  <div key={d.id} className="flex items-center gap-2 text-sm">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    <span className="truncate">{d.department_name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Processes */}
+          <div className="rounded-xl border bg-white p-4 dark:bg-slate-950">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <Database className="h-4 w-4 text-sky-500" />
+              Бизнесийн процессууд
+            </h3>
+            {savedProcs.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Процесс сонгоогүй</p>
+            ) : (
+              <div className="space-y-1.5">
+                {savedProcs.map((p) => (
+                  <div key={p.id} className="flex items-center gap-2 text-sm">
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                    <span className="truncate">{p.process_name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Assets */}
+          <div className="rounded-xl border bg-white p-4 dark:bg-slate-950">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <ShieldCheck className="h-4 w-4 text-emerald-500" />
+              Хамрагдах хөрөнгүүд
+            </h3>
+            {savedAssets.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Хөрөнгө сонгоогүй</p>
+            ) : (
+              <div className="max-h-48 space-y-1.5 overflow-y-auto">
+                {savedAssets.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center justify-between text-sm"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      <span className="truncate">{a.asset_name}</span>
+                    </div>
+                    {a.asset_type && (
+                      <span className="ml-2 shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-muted-foreground dark:bg-slate-800">
+                        {a.asset_type}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* NIST CSF functions */}
+          <div className="rounded-xl border bg-white p-4 dark:bg-slate-950">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
+              <CheckCircle2 className="h-4 w-4 text-amber-500" />
+              NIST CSF чиг үүрэг
+            </h3>
+            <div className="space-y-2">
+              {FUNCTION_ORDER.map((fc) => {
+                const meta = FUNCTION_META[fc];
+                const total = data.rows.filter(
+                  (r) => r.function_code === fc,
+                ).length;
+                const inScope = data.rows.filter(
+                  (r) =>
+                    r.function_code === fc && r.scope_status === "in_scope",
+                ).length;
+                const pct = total > 0 ? Math.round((inScope / total) * 100) : 0;
+                return (
+                  <div key={fc}>
+                    <div className="mb-1 flex items-center justify-between text-xs">
+                      <span className={`${meta.color} font-semibold`}>
+                        {fc} — {meta.mn}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {inScope}/{total}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800">
+                      <div
+                        className={`h-1.5 rounded-full ${meta.bg}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -2415,7 +2293,6 @@ export default function CsfScopePage() {
             draft={nistDraft}
           />
         )}
-        {step === 6 && <Step6RiskScope selectedAssetIds={selectedAssetIds} />}
       </div>
 
       {/* Navigation */}
@@ -2434,24 +2311,14 @@ export default function CsfScopePage() {
           <Button onClick={handleNext} disabled={saving}>
             {saving ? "Хадгалж байна…" : "Дараах →"}
           </Button>
-        ) : step === 5 ? (
+        ) : (
           <Button
-            onClick={async () => {
-              await finalizeScope();
-              setStep(6);
-            }}
+            onClick={finalizeScope}
             disabled={saving}
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >
-            {saving ? "Хадгалж байна…" : "Scope батлах & Дүгнэлт харах ✓"}
+            {saving ? "Хадгалж байна…" : "Scope батлах ✓"}
           </Button>
-        ) : (
-          <a href="/risk-register">
-            <Button className="bg-slate-900 text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-950">
-              Эрсдэлийн бүртгэл рүү шилжих
-              <ArrowRight className="ml-1.5 h-4 w-4" />
-            </Button>
-          </a>
         )}
       </div>
     </div>

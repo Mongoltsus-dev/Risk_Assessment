@@ -192,7 +192,9 @@ function tierBadgeClass(tier: number | null | undefined) {
 }
 
 function avg(values: Array<number | null | undefined>) {
-  const clean = values.filter((value): value is number => typeof value === "number");
+  const clean = values.filter(
+    (value): value is number => typeof value === "number",
+  );
   if (clean.length === 0) return null;
   return clean.reduce((sum, value) => sum + value, 0) / clean.length;
 }
@@ -210,7 +212,8 @@ function functionRank(value: string) {
 function sortRows(a: ComplianceRow, b: ComplianceRow) {
   const gapDelta = Number(hasGap(b)) - Number(hasGap(a));
   if (gapDelta !== 0) return gapDelta;
-  const functionDelta = functionRank(a.nist_function) - functionRank(b.nist_function);
+  const functionDelta =
+    functionRank(a.nist_function) - functionRank(b.nist_function);
   if (functionDelta !== 0) return functionDelta;
   return a.subcategory_id.localeCompare(b.subcategory_id);
 }
@@ -432,8 +435,14 @@ export default function GapAnalysisActionPage() {
                 label="Encryption"
                 value={data.asset_scope.encryption_coverage}
               />
-              <CoverageBar label="Logging" value={data.asset_scope.logging_coverage} />
-              <CoverageBar label="Backup" value={data.asset_scope.backup_coverage} />
+              <CoverageBar
+                label="Logging"
+                value={data.asset_scope.logging_coverage}
+              />
+              <CoverageBar
+                label="Backup"
+                value={data.asset_scope.backup_coverage}
+              />
             </div>
           </div>
         </div>
@@ -532,7 +541,7 @@ export default function GapAnalysisActionPage() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-sm">
+            <table className="w-full min-w-245 text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/60">
                 <tr>
                   <th className="px-4 py-3">NIST CSF subcategory</th>
@@ -556,7 +565,9 @@ export default function GapAnalysisActionPage() {
                           <Badge className="border border-blue-200 bg-blue-50 font-mono text-blue-700">
                             {row.subcategory_id}
                           </Badge>
-                          <Badge className={`border ${STATUS_CLASS[row.status]}`}>
+                          <Badge
+                            className={`border ${STATUS_CLASS[row.status]}`}
+                          >
                             {STATUS_LABEL[row.status]}
                           </Badge>
                         </div>
