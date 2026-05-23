@@ -105,16 +105,28 @@ async function ensureSchema() {
 
   await ensureBusinessProcessSchema();
 
-  if (await tableExists("assets")) {
-    await pool.query(`
-      INSERT INTO scope_departments (department_name)
-      SELECT DISTINCT TRIM(department)
-        FROM assets
-       WHERE department IS NOT NULL
-         AND TRIM(department) <> ''
-      ON CONFLICT (department_name) DO NOTHING
-    `);
-  }
+  // Remove legacy English placeholder departments (seeded from assets in older schema)
+  await pool.query(`
+    DELETE FROM scope_departments
+     WHERE department_name IN (
+       'Engineering', 'Infrastructure', 'IT', 'Product', 'Security'
+     )
+  `);
+
+  // Seed the 9 standard Mongolian departments (idempotent)
+  await pool.query(`
+    INSERT INTO scope_departments (department_name, criticality, status) VALUES
+      ('Мэдээллийн технологийн хэлтэс',               'High',   'Active'),
+      ('Санхүүгийн хэлтэс',                            'High',   'Active'),
+      ('Хүний нөөцийн хэлтэс',                         'Medium', 'Active'),
+      ('Үйл ажиллагааны хэлтэс',                       'High',   'Active'),
+      ('Маркетингийн хэлтэс',                          'Medium', 'Active'),
+      ('Худалдан авалт / Нийлүүлэгчийн удирдлагын хэлтэс', 'Medium', 'Active'),
+      ('Удирдлага',                                    'High',   'Active'),
+      ('Хууль / Нийцлийн хэлтэс',                     'Medium', 'Active'),
+      ('Харилцагчийн үйлчилгээний хэлтэс',             'Low',    'Active')
+    ON CONFLICT (department_name) DO NOTHING
+  `);
 }
 
 async function tableExists(tableName: string) {

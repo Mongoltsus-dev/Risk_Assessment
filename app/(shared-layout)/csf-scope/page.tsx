@@ -1998,9 +1998,29 @@ export default function CsfScopePage() {
 
       // Init selections from saved assessment scope
       const scope = payload.assessment_scope;
-      setSelectedDeptIds(
-        new Set((scope.selected_department_ids ?? []).map(Number)),
-      );
+
+      if ((scope.selected_department_ids ?? []).length > 0) {
+        setSelectedDeptIds(
+          new Set((scope.selected_department_ids ?? []).map(Number)),
+        );
+      } else {
+        // First visit — auto-select the 6 default Mongolian departments
+        const PRE_SELECTED_DEPT_NAMES = new Set([
+          "Мэдээллийн технологийн хэлтэс",
+          "Санхүүгийн хэлтэс",
+          "Хүний нөөцийн хэлтэс",
+          "Үйл ажиллагааны хэлтэс",
+          "Худалдан авалт / Нийлүүлэгчийн удирдлагын хэлтэс",
+          "Удирдлага",
+        ]);
+        setSelectedDeptIds(
+          new Set(
+            payload.departments
+              .filter((d) => PRE_SELECTED_DEPT_NAMES.has(d.department_name))
+              .map((d) => d.id),
+          ),
+        );
+      }
       setSelectedProcessIds(
         new Set((scope.selected_business_process_ids ?? []).map(Number)),
       );

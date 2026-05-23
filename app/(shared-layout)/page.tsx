@@ -446,7 +446,7 @@ export default function Home() {
       <div className="flex items-center justify-center min-h-96">
         <div className="flex items-center gap-3 text-muted-foreground">
           <RefreshCw className="w-5 h-5 animate-spin" />
-          <span>Хянах самбар ачааллаж байна…</span>
+          <span>Ачааллаж байна…</span>
         </div>
       </div>
     );
@@ -477,7 +477,7 @@ export default function Home() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
             <Shield className="w-8 h-8 text-blue-600" />
-            Хянах самбар
+            Эрсдэлийн үнэлгээний хянах самбар
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
             Байгууллагын кибер аюулгүй байдлын эрсдэлийн үнэлгээний ерөнхий
