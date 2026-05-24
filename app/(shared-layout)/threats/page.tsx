@@ -2,14 +2,18 @@
 
 import {
   AlertTriangle,
+  Bug,
   ChevronDown,
   ChevronUp,
   Database,
   Filter,
   Link2,
+  RefreshCw,
   RotateCcw,
   Search,
   ShieldAlert,
+  ShieldOff,
+  Sparkles,
   Target,
 } from "lucide-react";
 import Link from "next/link";
@@ -74,6 +78,32 @@ interface AssetThreatGroup {
   asset: LinkedAsset;
   risk_level: string;
   threats: AssetThreatItem[];
+}
+
+type VulnStatus = "open" | "in_progress" | "remediated" | "accepted";
+
+interface Vulnerability {
+  id: number;
+  asset_id: number | null;
+  threat_id: number | null;
+  cve_id: string | null;
+  title: string;
+  description: string | null;
+  vulnerability_type: string;
+  severity: "Low" | "Medium" | "High" | "Critical";
+  cvss_score: string | null;
+  status: VulnStatus;
+  discovered_at: string;
+  remediated_at: string | null;
+  remediation_notes: string | null;
+  reference_url: string | null;
+  source: string;
+  asset_name: string | null;
+  threat_name: string | null;
+  threat_nist_category: string | null;
+  threat_mapping_risk_level: string | null;
+  threat_mitigation_notes: string | null;
+  threat_mitigation_notes_mn: string | null;
 }
 
 const ALL = "Бүгд";
@@ -168,6 +198,49 @@ const CRITICALITY_LABELS: Record<string, string> = {
   "Tier 1 (Mission Critical)": "Түвшин 1 (Үйл ажиллагаанд нэн чухал)",
   "Tier 2 (Business Critical)": "Түвшин 2 (Бизнесийн чухал)",
   "Tier 3 (Operational)": "Түвшин 3 (Үйл ажиллагааны)",
+};
+
+// ── Vulnerability constants ──────────────────────────────────────
+const VULN_SEVERITY_STYLES: Record<string, string> = {
+  Critical:
+    "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+  High: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20",
+  Medium:
+    "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  Low: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+};
+
+const VULN_STATUS_STYLES: Record<string, string> = {
+  open: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20",
+  in_progress:
+    "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
+  remediated:
+    "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  accepted:
+    "bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20",
+};
+
+const VULN_STATUS_LABEL: Record<string, string> = {
+  open: "Нээлттэй",
+  in_progress: "Хийгдэж буй",
+  remediated: "Засварласан",
+  accepted: "Хүлээн зөвшөөрсөн",
+};
+
+const VULN_SEVERITY_LABEL: Record<string, string> = {
+  Critical: "Ноцтой",
+  High: "Өндөр",
+  Medium: "Дунд",
+  Low: "Бага",
+};
+
+const VULN_TYPE_LABEL: Record<string, string> = {
+  CVE: "CVE",
+  Misconfiguration: "Буруу тохиргоо",
+  "Weak Authentication": "Сул баталгаажуулалт",
+  "Outdated Software": "Хуучирсан програм хангамж",
+  "Default Credentials": "Өгөгдмөл нэвтрэх мэдээлэл",
+  Other: "Бусад",
 };
 
 const labelOrOriginal = (
@@ -278,23 +351,41 @@ export default function ThreatLibraryPage() {
   const [expandedAssets, setExpandedAssets] = useState<Record<number, boolean>>(
     {},
   );
+  const [expandedVulns, setExpandedVulns] = useState<Record<number, boolean>>(
+    {},
+  );
+
+  // Vulnerability state
+  const [vulns, setVulns] = useState<Vulnerability[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<{
+    created: number;
+    skipped: number;
+  } | null>(null);
 
   useEffect(() => {
     let mounted = true;
 
-    fetch("/api/threats/library")
-      .then((response) => {
-        if (!response.ok) throw new Error("Failed to fetch threats");
-        return response.json();
+    Promise.all([
+      fetch("/api/threats/library"),
+      fetch("/api/vulnerabilities"),
+    ])
+      .then(([threatRes, vulnRes]) => {
+        if (!threatRes.ok) throw new Error("Failed to fetch threats");
+        return Promise.all([
+          threatRes.json(),
+          vulnRes.ok ? vulnRes.json() : Promise.resolve({ vulnerabilities: [] }),
+        ]);
       })
-      .then((data) => {
+      .then(([threatData, vulnData]) => {
         if (!mounted) return;
-        setThreats(data.threats || []);
+        setThreats(threatData.threats || []);
         setMeta({
-          registered_asset_count: data.registered_asset_count || 0,
-          linked_asset_count: data.linked_asset_count || 0,
-          registered_asset_types: data.registered_asset_types || [],
+          registered_asset_count: threatData.registered_asset_count || 0,
+          linked_asset_count: threatData.linked_asset_count || 0,
+          registered_asset_types: threatData.registered_asset_types || [],
         });
+        setVulns(vulnData.vulnerabilities || []);
         setError("");
       })
       .catch(() => {
@@ -310,6 +401,46 @@ export default function ThreatLibraryPage() {
       mounted = false;
     };
   }, []);
+
+  const runScan = async () => {
+    setScanning(true);
+    setScanResult(null);
+    try {
+      const res = await fetch("/api/vulnerabilities/scan", { method: "POST" });
+      if (res.ok) {
+        const d = await res.json();
+        setScanResult({
+          created: d.findings_created ?? 0,
+          skipped: d.findings_skipped_existing ?? 0,
+        });
+        const vulnRes = await fetch("/api/vulnerabilities");
+        if (vulnRes.ok) {
+          const vulnData = await vulnRes.json();
+          setVulns(vulnData.vulnerabilities || []);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const updateVulnStatus = async (id: number, status: VulnStatus) => {
+    // Optimistic update
+    setVulns((prev) =>
+      prev.map((v) => (v.id === id ? { ...v, status } : v)),
+    );
+    try {
+      await fetch(`/api/vulnerabilities/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const threatTypes = useMemo(() => {
     const types = new Set(
@@ -344,13 +475,32 @@ export default function ThreatLibraryPage() {
       }
     }
 
+    const openVulns = vulns.filter(
+      (v) => v.status === "open" || v.status === "in_progress",
+    ).length;
+
     return {
       totalThreats: threats.length,
       criticalThreats,
       exposedAssets: exposedAssetIds.size,
       registeredAssetTypes: meta.registered_asset_types.length,
+      openVulns,
+      totalVulns: vulns.length,
     };
-  }, [meta.registered_asset_types.length, threats]);
+  }, [meta.registered_asset_types.length, threats, vulns]);
+
+  // Group vulns by asset id for quick lookup
+  const vulnsByAssetId = useMemo(() => {
+    const map = new Map<number, Vulnerability[]>();
+    for (const v of vulns) {
+      if (v.asset_id != null) {
+        const existing = map.get(v.asset_id) ?? [];
+        existing.push(v);
+        map.set(v.asset_id, existing);
+      }
+    }
+    return map;
+  }, [vulns]);
 
   const assetThreatGroups = useMemo(() => {
     const groups = new Map<number, AssetThreatGroup>();
@@ -474,13 +624,39 @@ export default function ThreatLibraryPage() {
                 : `${meta.registered_asset_count} бүртгэлтэй хөрөнгөөс ${meta.linked_asset_count} хөрөнгө аюултай холбогдсон байна.`}
             </p>
           </div>
-          <Link
-            href="/assets"
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            <Database className="size-4" />
-            Хөрөнгө харах
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {scanResult && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                <Sparkles className="size-3" />
+                {scanResult.created} шинэ, {scanResult.skipped} давхардсан
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={runScan}
+              disabled={scanning}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+            >
+              {scanning ? (
+                <>
+                  <RefreshCw className="size-4 animate-spin" />
+                  Шалгаж байна...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="size-4" />
+                  Эмзэг байдал шалгах
+                </>
+              )}
+            </button>
+            <Link
+              href="/assets"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
+              <Database className="size-4" />
+              Хөрөнгө харах
+            </Link>
+          </div>
         </div>
 
         {!loading && (
@@ -511,12 +687,12 @@ export default function ThreatLibraryPage() {
                   "border-orange-200 bg-orange-50 dark:border-orange-900/60 dark:bg-orange-950/30",
               },
               {
-                label: "Хөрөнгийн төрөл",
-                value: stats.registeredAssetTypes,
-                icon: Database,
-                color: "text-emerald-700 dark:text-emerald-300",
+                label: "Эмзэг байдал",
+                value: stats.totalVulns,
+                icon: Bug,
+                color: "text-rose-700 dark:text-rose-300",
                 surface:
-                  "border-emerald-200 bg-emerald-50 dark:border-emerald-900/60 dark:bg-emerald-950/30",
+                  "border-rose-200 bg-rose-50 dark:border-rose-900/60 dark:bg-rose-950/30",
               },
             ].map(({ label, value, icon: Icon, color, surface }) => (
               <div key={label} className={`rounded-lg border p-4 ${surface}`}>
@@ -641,6 +817,7 @@ export default function ThreatLibraryPage() {
                 ? group.threats
                 : group.threats.slice(0, 2);
               const hiddenThreatCount = group.threats.length - 2;
+              const assetVulns = vulnsByAssetId.get(asset.id) ?? [];
               return (
                 <article
                   key={asset.id}
@@ -691,6 +868,30 @@ export default function ThreatLibraryPage() {
                       </div>
 
                       <div className="flex shrink-0 flex-wrap gap-2">
+                        {assetVulns.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedVulns((prev) => ({
+                                ...prev,
+                                [asset.id]: !prev[asset.id],
+                              }))
+                            }
+                            className={`inline-flex h-9 items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${
+                              expandedVulns[asset.id]
+                                ? "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/70"
+                                : "border-border bg-background hover:bg-accent hover:text-accent-foreground"
+                            }`}
+                          >
+                            <Bug className="size-4" />
+                            {assetVulns.length} эмзэг байдал
+                            {expandedVulns[asset.id] ? (
+                              <ChevronUp className="size-3.5" />
+                            ) : (
+                              <ChevronDown className="size-3.5" />
+                            )}
+                          </button>
+                        )}
                         <Link
                           href="/assets"
                           className="inline-flex h-9 items-center justify-center rounded-md border border-border bg-background px-3 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -851,6 +1052,14 @@ export default function ThreatLibraryPage() {
                           )}
                         </div>
                       </section>
+
+                      {/* ── Vulnerability section (toggle) ── */}
+                      {expandedVulns[asset.id] && assetVulns.length > 0 && (
+                        <AssetVulnerabilitiesSection
+                          vulns={assetVulns}
+                          onStatusChange={updateVulnStatus}
+                        />
+                      )}
                     </div>
                   </div>
                 </article>
@@ -871,5 +1080,152 @@ function AssetFact({ label, value }: { label: string; value: string }) {
       </span>
       <span className="truncate text-sm font-bold">{value}</span>
     </div>
+  );
+}
+
+function AssetVulnerabilitiesSection({
+  vulns,
+  onStatusChange,
+}: {
+  vulns: Vulnerability[];
+  onStatusChange: (id: number, status: VulnStatus) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const visible = expanded ? vulns : vulns.slice(0, 3);
+  const hidden = vulns.length - 3;
+
+  const criticalCount = vulns.filter((v) => v.severity === "Critical").length;
+  const openCount = vulns.filter(
+    (v) => v.status === "open" || v.status === "in_progress",
+  ).length;
+
+  return (
+    <section className="min-w-0">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Bug className="size-4 text-rose-500" />
+        <h3 className="text-sm font-bold">Эмзэг байдал</h3>
+        <span className="text-xs text-muted-foreground">
+          {vulns.length} олдвор · {openCount} нээлттэй
+        </span>
+        {criticalCount > 0 && (
+          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:border-rose-900/70 dark:bg-rose-950/40 dark:text-rose-300">
+            {criticalCount} ноцтой
+          </span>
+        )}
+      </div>
+      <div className="space-y-2">
+        {visible.map((v) => {
+          const mitigation =
+            v.threat_mitigation_notes_mn ||
+            v.threat_mitigation_notes ||
+            v.remediation_notes;
+          return (
+            <div
+              key={v.id}
+              className="overflow-hidden rounded-md border border-border bg-background"
+            >
+              <div
+                className={`h-0.5 ${
+                  v.severity === "Critical"
+                    ? "bg-rose-500"
+                    : v.severity === "High"
+                      ? "bg-orange-500"
+                      : v.severity === "Medium"
+                        ? "bg-amber-500"
+                        : "bg-emerald-500"
+                }`}
+              />
+              <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                    <span
+                      className={`rounded border px-2 py-0.5 text-[11px] font-bold ${VULN_SEVERITY_STYLES[v.severity]}`}
+                    >
+                      {VULN_SEVERITY_LABEL[v.severity]}
+                    </span>
+                    <span
+                      className={`rounded border px-2 py-0.5 text-[11px] font-medium ${VULN_STATUS_STYLES[v.status]}`}
+                    >
+                      {VULN_STATUS_LABEL[v.status]}
+                    </span>
+                    <span className="rounded border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+                      {VULN_TYPE_LABEL[v.vulnerability_type] ??
+                        v.vulnerability_type}
+                    </span>
+                    {v.cvss_score && (
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        CVSS {v.cvss_score}
+                      </span>
+                    )}
+                    {v.cve_id && (
+                      <span className="font-mono text-[11px] text-muted-foreground">
+                        {v.cve_id}
+                      </span>
+                    )}
+                    {v.threat_name && (
+                      <span className="inline-flex items-center gap-1 rounded border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-700 dark:text-blue-300">
+                        <Link2 className="size-3" />
+                        {v.threat_name}
+                      </span>
+                    )}
+                    {!v.threat_id && (
+                      <span className="inline-flex items-center gap-1 rounded border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-300">
+                        <ShieldOff className="size-3" />
+                        Posture gap
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm font-semibold leading-snug">{v.title}</p>
+                  {v.description && (
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
+                      {v.description}
+                    </p>
+                  )}
+                  {mitigation && (
+                    <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-5 text-muted-foreground">
+                      <span className="font-semibold text-foreground">
+                        Зөвлөмж:
+                      </span>{" "}
+                      {mitigation}
+                    </div>
+                  )}
+                </div>
+                <select
+                  value={v.status}
+                  onChange={(e) =>
+                    onStatusChange(v.id, e.target.value as VulnStatus)
+                  }
+                  className="app-form-field h-8 shrink-0 rounded-md border px-2 text-xs outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 sm:w-36"
+                >
+                  <option value="open">Нээлттэй</option>
+                  <option value="in_progress">Хийгдэж буй</option>
+                  <option value="remediated">Засварласан</option>
+                  <option value="accepted">Хүлээн зөвшөөрсөн</option>
+                </select>
+              </div>
+            </div>
+          );
+        })}
+        {hidden > 0 && (
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border border-dashed border-border bg-background text-sm font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            {expanded ? (
+              <>
+                <ChevronUp className="size-4" />
+                Хураах
+              </>
+            ) : (
+              <>
+                <ChevronDown className="size-4" />
+                Дахиад {hidden} эмзэг байдал харах
+              </>
+            )}
+          </button>
+        )}
+      </div>
+    </section>
   );
 }

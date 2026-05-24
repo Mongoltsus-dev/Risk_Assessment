@@ -109,7 +109,7 @@ const STEPS = [
   { label: "Процессууд", sublabel: "Бизнесийн процесс" },
   { label: "Хөрөнгүүд", sublabel: "Мэдээллийн хөрөнгүүд" },
   { label: "NIST CSF", sublabel: "Дэд ангилал сонгох" },
-  { label: "Баталгаажуулах", sublabel: "Scope хянах" },
+  { label: "Баталгаажуулах", sublabel: "Мэдээллийг хянах" },
 ];
 
 const FUNCTION_ORDER = ["GV", "ID", "PR", "DE", "RS", "RC"];
@@ -177,6 +177,16 @@ const CRITICALITY_COLORS: Record<string, string> = {
   Low: "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400",
 };
 
+// Mongolian display labels for criticality values (DB stores English keys)
+const CRITICALITY_LABELS: Record<string, string> = {
+  Critical: "Маш өндөр",
+  High: "Өндөр",
+  Medium: "Дундаж",
+  Low: "Бага",
+};
+
+const CRITICALITY_OPTIONS = ["Critical", "High", "Medium", "Low"] as const;
+
 const ASSET_CRITICALITY_OPTIONS = [
   "Tier 0 (Life/Safety)",
   "Tier 1 (Mission Critical)",
@@ -205,7 +215,7 @@ function StepIndicator({
   onNavigate: (step: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-0 overflow-x-auto pb-1">
+    <div className="flex w-full items-center justify-between overflow-x-auto pb-1">
       {STEPS.map((step, index) => {
         const stepNum = index + 1;
         const done = stepNum < current;
@@ -363,9 +373,9 @@ function Step1Departments({
                 }
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
-                {["Маш өндөр", "Өндөр", "Дундаж", "Бага"].map((c) => (
+                {CRITICALITY_OPTIONS.map((c) => (
                   <option key={c} value={c}>
-                    {c}
+                    {CRITICALITY_LABELS[c]}
                   </option>
                 ))}
               </select>
@@ -468,7 +478,8 @@ function Step1Departments({
                     <span
                       className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${critColor}`}
                     >
-                      {dept.criticality}
+                      {CRITICALITY_LABELS[dept.criticality ?? ""] ??
+                        dept.criticality}
                     </span>
                   )}
                   <span className="text-[10px] text-muted-foreground">
@@ -558,7 +569,7 @@ function Step2Processes({
       <span
         className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${color}`}
       >
-        {c ?? "—"}
+        {CRITICALITY_LABELS[c ?? ""] ?? c ?? "—"}
       </span>
     );
   };
@@ -648,9 +659,9 @@ function Step2Processes({
                 }
                 className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
               >
-                {["Critical", "High", "Medium", "Low"].map((c) => (
+                {CRITICALITY_OPTIONS.map((c) => (
                   <option key={c} value={c}>
-                    {c}
+                    {CRITICALITY_LABELS[c]}
                   </option>
                 ))}
               </select>
@@ -843,7 +854,7 @@ function Step3Assets({
       <span
         className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${color}`}
       >
-        {c ?? "—"}
+        {CRITICALITY_LABELS[c ?? ""] ?? c ?? "—"}
       </span>
     );
   };
@@ -1125,10 +1136,12 @@ function Step4NistCsf({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold">NIST CSF 2.0 Дэд ангилал</h2>
+        <h2 className="text-xl font-bold">
+          Эрсдэлийн үнэлгээнд хамрагдах дэд ангилалуудыг сонгоно уу.
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Байгууллагын scope-д орох NIST CSF дэд ангилалуудыг сонгоно уу. Заавал
-          орох ангилалууд автоматаар тэмдэглэгдсэн байна.
+          Байгууллагын эрсдэлийн үнэлгээнд хамрагдах NIST CSF-ийн дэд
+          ангилалуудыг сонгоно уу.
         </p>
       </div>
 
@@ -1145,9 +1158,7 @@ function Step4NistCsf({
         <div className="flex items-center gap-2 rounded-lg border bg-white px-3 py-2 dark:bg-slate-950">
           <CheckCircle2 className="h-4 w-4 text-emerald-500" />
           <span className="text-sm font-semibold">{inScopeCount}</span>
-          <span className="text-xs text-muted-foreground">
-            / {rows.length} scope-д
-          </span>
+          <span className="text-xs text-muted-foreground">/ {rows.length}</span>
         </div>
       </div>
 
@@ -1219,11 +1230,7 @@ function Step4NistCsf({
                             return (
                               <div
                                 key={row.subcategory_id}
-                                className={`px-4 py-3 ${
-                                  missingReason
-                                    ? "bg-rose-50/50 dark:bg-rose-950/10"
-                                    : ""
-                                }`}
+                                className="px-4 py-3"
                               >
                                 <div className="grid gap-3 xl:grid-cols-[1fr_280px]">
                                   <div className="min-w-0">
@@ -1250,7 +1257,7 @@ function Step4NistCsf({
                                     {row.is_mandatory ? (
                                       <div className="flex h-9 items-center justify-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 text-xs font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                                         <LockKeyhole className="h-3.5 w-3.5" />
-                                        Scope-д заавал орно
+                                        Заавал орно
                                       </div>
                                     ) : (
                                       <div className="grid grid-cols-3 gap-0.5 rounded-md border bg-background p-0.5">
@@ -1287,7 +1294,11 @@ function Step4NistCsf({
                                               }
                                               className={`flex h-8 items-center justify-center gap-1 rounded px-1 text-xs font-medium transition-colors ${
                                                 status === s
-                                                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950"
+                                                  ? s === "in_scope"
+                                                    ? "bg-emerald-500 text-white dark:bg-emerald-600"
+                                                    : s === "out_of_scope"
+                                                      ? "bg-rose-500 text-white dark:bg-rose-600"
+                                                      : "bg-amber-400 text-amber-900 dark:bg-amber-500"
                                                   : "text-muted-foreground hover:bg-muted"
                                               }`}
                                             >
@@ -1422,10 +1433,10 @@ function Step5Review({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold">Scope хянах</h2>
+        <h2 className="text-xl font-bold">Баталгаажуулах</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Бүх мэдээллийг хянаж, баталгаажуулна уу. Хадгалах товч дарахад scope
-          тогтоогдоно.
+          Бүх мэдээллийг хянаж, баталгаажуулна уу. Хадгалах товч дарахад хамрах
+          хүрээ баталгаажих болно.
         </p>
       </div>
 
@@ -2317,7 +2328,7 @@ export default function CsfScopePage() {
             disabled={saving}
             className="bg-emerald-600 hover:bg-emerald-700 text-white"
           >
-            {saving ? "Хадгалж байна…" : "Scope батлах ✓"}
+            {saving ? "Хадгалж байна…" : "Хадгалах ✓"}
           </Button>
         )}
       </div>

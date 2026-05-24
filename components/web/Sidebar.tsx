@@ -3,7 +3,6 @@
 import {
   BarChart3,
   BookOpen,
-  Bug,
   Building2,
   ChevronLeft,
   ChevronRight,
@@ -60,15 +59,9 @@ const menuItems: MenuItem[] = [
     category: "Удирдлага",
   },
   {
-    label: "Аюулын сан",
+    label: "Аюулууд",
     href: "/threats",
     icon: ShieldAlert,
-    category: "Удирдлага",
-  },
-  {
-    label: "Эмзэг байдал",
-    href: "/vulnerabilities",
-    icon: Bug,
     category: "Удирдлага",
   },
   {
